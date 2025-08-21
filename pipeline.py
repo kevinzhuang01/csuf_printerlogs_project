@@ -40,14 +40,13 @@ def save_to_s3(data:dict, bucket_name:str, s3_key:str)-> None:
 
 
 def main():
-    logs = read_logs("csuf_printer_logs.txt")
+    input_file = os.getenv("LOG_File", "csuf_printer_logs.txt")
+    bucket = os.getenv("S3_Bucket", "csuf_printer_job")
+    key = f"printer_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    logs = read_logs(input_file)
     summary = aggregate_data(logs)
 
-    print("Summary:", summary)
-
-    # Save to S3 (requires AWS credentials in your env)
-    bucket = "your-bucket-name"
-    key = f"printer_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    logging.info(f"Summary: {summary}")
     save_to_s3(summary, bucket, key)
 
 if __name__ == "__main__":
