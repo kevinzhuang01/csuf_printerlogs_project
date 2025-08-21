@@ -1,26 +1,43 @@
 import ast
 import json
+import logging
 from collections import defaultdict
+from dataclasses import dataclass
+from typing import Dict, Generator, Any
+import os
 from datetime import datetime
 import boto3
+logging.basicConfig(level = logging.INFO)
+@dataclass
+class LogEntry:
+    location: str
+    pages: int
+    cost: float
 
-def read_logs(filepath):
+
+def read_logs(filepath:str) -> Generator[LogEntry,None,None]:
     with open(filepath, 'r') as f:
         for line in f:
-            yield ast.literal_eval(line.strip())  # Convert string dict to Python dict
-
-def aggregate_data(logs):
+            try:
+                log = ast.literal_eval(line.strip())
+                yield ast.literal_eval(line.strip())
+            except Exception as e:
+                logging.warning(f"Skipping invalid log line: {line}, error: {e}")
+def aggregate_data(logs: Generator[LogEntry,None,None]) -> Dict[str,Dict[str,Any]]:
     usage_summary = defaultdict(lambda: {"pages": 0, "cost": 0})
     for log in logs:
-        location = log["location"]
-        usage_summary[location]["pages"] += log["pages"]
-        usage_summary[location]["cost"] += log["cost"]
-    return usage_summary
+        usage_summary[log.location]["pages"] += log["pages"]
+        usage_summary[log.location]["cost"] += log["cost"]
+    return dict(usage_summary)
 
-def save_to_s3(data, bucket_name, s3_key):
+def save_to_s3(data:dict, bucket_name:str, s3_key:str)-> None:
     s3 = boto3.client("s3")
-    s3.put_object(Body=json.dumps(data), Bucket=bucket_name, Key=s3_key)
-    print(f"Saved to s3://{bucket_name}/{s3_key}")
+    try:
+        s3.put_object(Body=json.dumps(data), Bucket=bucket_name, Key=s3_key)
+        logging.info(f"Saved to s3://{bucket_name}/{s3_key}")
+    except Exception as e:
+        logging.error("Failed to save to S3: {e}")
+
 
 def main():
     logs = read_logs("csuf_printer_logs.txt")
